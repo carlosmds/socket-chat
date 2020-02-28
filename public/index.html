@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
 
-    <title>Chat ao vivasso</title>
+    <title>WebSocket Chat</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.3.0/socket.io.js"></script>
     <link rel="stylesheet" href="styles.css">
@@ -13,114 +13,89 @@
 <body>
     <form id="chat">
         <span>Usuários ativos:</span>
-        <ul class="users">
-            <!--  -->
-        </ul>
-        <div class="messages"></div>
+        <ul id="users"></ul>
+
+        <div id="messages"></div>
+        <span id="active-user"></span>
+        
         <input type="text" name="message" placeholder="digite a sua mensagem">
         <button type="submit">Enviar</button>
     </form>
     <script type="text/javascript">
-        
-        var contract = prompt('insira o contrato', '123');
-        var username = prompt('insira o nome de usuário', 'teste');
-        var id = prompt('insira o id de usuário', '321');
 
-        const ActiveUser = {
-            id: id,
-            name: username,
-            contract: contract
+        var ActiveUser = {
+            id: prompt('insira o id de usuário', '321'),
+            name: prompt('insira o nome de usuário', 'Jo'),
+            room: prompt('insira a sala', '123')
         };
 
         var socket = io.connect('http://localhost:3000', { 
-            query: `id=${ActiveUser.id}&name=${ActiveUser.name}&contract=${ActiveUser.contract}` 
+            query: `id=${ActiveUser.id}&name=${ActiveUser.name}&room=${ActiveUser.room}` 
         });
 
-        function renderMessage(message) {
-            let messageObject = parseObject(message);
-            $('.messages').append(`
-                <div class="message">
-                    <strong>${messageObject.author.name}</strong>:${messageObject.message}
-                </div>`
-            );
-        }
+        eventosDeUsuarioLogado(ActiveUser, socket);
+        boasVindas(ActiveUser, socket);
         
-        function renderActiveUser(user) {
-            let userObject = parseObject(user);
-            console.log(userObject);
-            
-            $('.users').append(`
-                <li id="user-${userObject.id}" class="user" data-id="${userObject.id}">
-                    ${userObject.name}
-                </li>`);
+        function eventosDeUsuarioLogado(user, socket){
+
+            socket.on('userConnected', function(userConnected){
+                usuarioConectado(parseObject(userConnected), user);
+            });
+
+            socket.on('receivedMessage', function(message){
+                mensagemRecebida(parseObject(message), user);
+            });
+
+            socket.on('userDisconnected', function(disconnectedUser){
+                usuarioDesconectado(parseObject(disconnectedUser), user)
+            });
+
+            $("#chat").submit(function(event) {
+                event.preventDefault();
+                sendMessage(user, socket);
+            });
         }
 
-        function renderDisconectedUser(user) {
-            let userObject = parseObject(user);
-            $(`#user-${userObject.id}`).remove();
+        function usuarioConectado(userConnected, user){
+            if (usuarioPertenceASala(userConnected, user)) {
+                lidarComUsuarioConectado(userConnected, user)
+            }
         }
 
-        function mayHandleUser(user, event) {
+        function usuarioDesconectado(disconnectedUser, ActiveUser){
+            if (usuarioPertenceASala(disconnectedUser, ActiveUser)) {
+                limparUsuarioDosConectadosSeExistir(disconnectedUser);
+                permaneceConectadoSeForUsuarioAtual(disconnectedUser, ActiveUser);
+            }
+        }
 
-            let userObject = parseObject(user);
+        function permaneceConectadoSeForUsuarioAtual(disconnectedUser, ActiveUser){
+            if (disconnectedUser.id == ActiveUser.id) {
+                socket.emit('userConnected', ActiveUser);
+                setarUsuarioConectado(ActiveUser);
+            }
+        }
 
-            let userElement = $(`#user-${userObject.id}`);
-
-            console.log(userElement);
-
-            switch (event) {
-                case 'connect':
-                    
-                    if (
-                        ActiveUser.contract == userObject.contract && 
-                        (userElement.length == 0|| userElement.data('id') != ActiveUser.id)  
-                    ) return true;
-                    break;
-                case 'disconnect':
-                    if (
-                        ActiveUser.contract == userObject.contract && 
-                        userElement.is("li")
-                    ) return true;    
-                    break;
+        function usuarioPertenceASala(firstUser, secondUser){
+            if (firstUser.room == secondUser.room) {
+                return true;
             }
             return false;
         }
 
-        function parseObject(object){
-            return (typeof object === 'string') ? JSON.parse(object) : object;
+
+        function mensagemRecebida(message, user){
+            if (podeLidarComMensagem(message, user)) {
+                setarMensagem(message);
+            }
         }
 
-        socket.on('previousConnectedUsers', function(users){
-           
-            for (user of users) {
-                renderActiveUser(user);
-            }
-        });
+        function podeLidarComMensagem(message, user){
+            if (message.author.room = user.room) return true; else return false;
+        }
 
-        socket.on('userConnected', function(user){
-            if (mayHandleUser(user, 'connect')) {
-                renderActiveUser(user);
-            }
-        });
-
-        socket.on('userDisconnected', function(user){
-            console.log('usuario desconectado');
-            renderDisconectedUser(user);
-        });
-        
-        socket.on('previousMessages', function(messages){
-            for (message of messages) {
-                renderMessage(message);
-            }
-        });
-
-        socket.on('receivedMessage', function(message){
-            renderMessage(message);
-        });
-        
-        $("#chat").submit(function(event) {
-            event.preventDefault(); 
-        
+        function sendMessage(user, socket){
+            
             var message = $("input[name=message]").val();
 
             $("input[name=message]").val('');
@@ -128,14 +103,66 @@
             if (message.length) {
 
                 var messageObject = {
-                    author: ActiveUser,
+                    author: user,
                     message: message,
                 };
 
                 socket.emit('sendMessage', messageObject);
-                renderMessage(messageObject);
+                setarMensagem(messageObject);
             }
-        });
+        }
+
+        function limparUsuarioDosConectadosSeExistir(user){
+            let userElement = $(`#user-${user.id}`);
+            if (userElement.length) userElement.remove();
+        }
+
+
+        function lidarComUsuarioConectado(userConnected, user){
+            if (userConnected.id == user.id) {
+                limparUsuarioDosConectadosSeExistir(user);
+                setarInformacoesDoUsuario(userConnected);
+            }
+            setarUsuarioConectado(userConnected);
+        }
+
+        function boasVindas(user, socket){
+            socket.on('Welcome', function(chatData){
+                setarChat(parseObject(chatData));
+            });
+        }        
+
+        function setarChat(chatData){ 
+            setarInformacoesDoUsuario(chatData.user);
+            for (user of chatData.previousConnectedUsers) setarUsuarioConectado(parseObject(user));
+            for (message of chatData.previousMessages) setarMensagem(parseObject(message));
+        }
+
+        function setarMensagem(message) {
+            author = parseObject(message.author);
+            $('#messages').append(`
+                <div class="message">
+                    <strong>${author.name}</strong>:${message.message}
+                </div>`
+            );
+        }
+
+        function setarInformacoesDoUsuario(user){
+            document.title = `${user.name}: sala ${user.room}`;
+            $("#active-user").text(`${user.name} (sala: ${user.room})`);
+        }
+
+        function setarUsuarioConectado(user) {
+            $('#users').append(`
+                <li id="user-${user.id}" class="user" data-id="${user.id}">
+                    ${user.name}
+                </li>`
+            );
+        }
+
+        function parseObject(object){
+            return (typeof object === 'string') ? JSON.parse(object) : object;
+        }
     </script>
 </body>
 </html>

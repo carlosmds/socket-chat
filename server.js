@@ -27,43 +27,85 @@ io.on('connection', socket => {
 
 function handleSocket(socket) 
 {
+    console.log('epa epa');
     var userObject = getUserFromConnect(socket);
 
     initialize(userObject, socket);
 
     socket.on('sendMessage', message => {
-        broadcastEmitSocketListPush(socket, userObject.contract, 'messages', 'receivedMessage', message);
+        broadcastMessage(socket, userObject.room, message);
+    });
+
+    socket.on('userConnected', user => {
+        setUser(socket, user);
     });
 
     socket.on('disconnect', () => {
-        socket.emit('userDisconnected', userObject);
+        deleteUser(socket, userObject);
     });
 }
 
 function initialize(userObject, socket){
-    broadcastEmitSocketListPush(socket, userObject.contract, 'users', 'userConnected', userObject);
-    //nao emitir ou atualizar quando for o próprio
-    emitSocketListResults(socket, userObject.contract, 'users', 'previousConnectedUsers');
-    emitSocketListResults(socket, userObject.contract, 'messages', 'previousMessages');
+    setUser(socket, userObject);
+    sendWelcome(socket, userObject);
 }
 
-function emitSocketListResults(socket, contract, key = 'messages', event = 'previousMessages', start = 0, stop = -1){
-    key = getContractKey(contract, key);
-    redisClient.lrange(key, start, stop, function(err, reply) {
-        socket.emit(event, reply); 
+async function sendWelcome(socket, userObject){
+
+    let previousConnectedUsers = await getPreviousConnectedUsers(socket, userObject);
+    let previousMessages = await getPreviousMessages(socket, userObject.room);
+
+    socket.emit('Welcome', {
+        previousConnectedUsers: previousConnectedUsers,
+        previousMessages: previousMessages,
+        user: userObject
     });
 }
 
-function broadcastEmitSocketListPush(socket, contract, key = 'users', event = 'userConnected', data) {
-    key = getContractKey(contract, key);
+function setUser(socket, userObject){
+
+    key = getRoomKey(userObject.room, `users:${userObject.id}`);
+    userObject = JSON.stringify(userObject);
+    redisClient.set(key, userObject);
+    socket.broadcast.emit('userConnected', userObject);
+}
+
+function deleteUser(socket, userObject){
+    key = getRoomKey(userObject.room, `users:${userObject.id}`);
+    redisClient.del(key);
+    socket.broadcast.emit('userDisconnected', userObject);
+}
+
+function getPreviousConnectedUsers(socket, userObject){
+    return new Promise((resolve, reject) => {
+        pattern = getRoomKey(userObject.room, `users:*`);
+        redisClient.keys(pattern, function(err, keys) {        
+            redisClient.mget(keys, function(err, users) {
+                resolve(users);
+            });
+        });
+    });
+}
+
+function getPreviousMessages(socket, room){
+    return new Promise((resolve, reject) => {
+        key = getRoomKey(room, 'messages');
+        redisClient.lrange(key, 0, -1, function(err, reply) {
+            resolve(reply); 
+        });
+    });
+}
+
+function broadcastMessage(socket, room, data) {
+    key = getRoomKey(room, 'messages');
     data = JSON.stringify(data);
     redisClient.rpush(key, data, function(err, reply) {
-        socket.broadcast.emit(event, data); 
+        socket.broadcast.emit('receivedMessage', data); 
     });
 }
 
-function getContractKey(contract, key = 'users') {
-    return `contracts:${contract}:${key}`;
+function getRoomKey(room, key) {
+    return `rooms:${room}:${key}`;
 }
 
 function getUserFromConnect(socket) {
@@ -72,7 +114,8 @@ function getUserFromConnect(socket) {
     return {
         id: socketData['id'],
         name: socketData['name'],
-        contract: socketData['contract']
+        room: socketData['room']
     };
 }
+
 server.listen(3000);

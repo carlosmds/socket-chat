@@ -36,7 +36,7 @@ button {
   margin-top: 10px;
 }
 
-.messages {
+#messages {
   width: 600px;
   height: 300px;
   overflow: auto;
