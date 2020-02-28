@@ -27,7 +27,6 @@ io.on('connection', socket => {
 
 function handleSocket(socket) 
 {
-    console.log('epa epa');
     var userObject = getUserFromConnect(socket);
 
     initialize(userObject, socket);
