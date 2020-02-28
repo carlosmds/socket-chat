@@ -1,2 +1,2 @@
 # socket-chat
- socket chat with nodejs
+ Socket.IO chat with NodeJs and Redis
