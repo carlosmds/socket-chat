@@ -28,8 +28,8 @@
             name: prompt('insira o nome de usuário', 'Jo'),
             room: prompt('insira a sala', '123')
         };
-
-        var socket = io.connect('http://localhost:3000', { 
+        
+        var socket = io.connect(document.URL, { 
             query: `id=${ActiveUser.id}&name=${ActiveUser.name}&room=${ActiveUser.room}` 
         });
 
@@ -104,7 +104,7 @@
 
                 var messageObject = {
                     author: user,
-                    message: message,
+                    message: $("<div/>").html(`<div>${message}</div>`).text(),
                 };
 
                 socket.emit('sendMessage', messageObject);
