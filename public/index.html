@@ -12,7 +12,7 @@
 </head>
 <body>
     <form id="chat">
-        <span>Usuários ativos:</span>
+        <strong style="color:green">Usuários ativos:</strong>
         <ul id="users"></ul>
 
         <div id="messages"></div>
@@ -22,11 +22,13 @@
         <button type="submit">Enviar</button>
     </form>
     <script type="text/javascript">
+        var random_color = Math.floor(Math.random()*16777215).toString(16); 
 
         var ActiveUser = {
             id: prompt('insira o id de usuário', '321'),
             name: prompt('insira o nome de usuário', 'Jo'),
-            room: prompt('insira a sala', '123')
+            room: prompt('insira a sala', '123'),
+            color: `#${random_color}` 
         };
         
         var socket = io.connect(document.URL, { 
@@ -91,7 +93,7 @@
         }
 
         function podeLidarComMensagem(message, user){
-            if (message.author.room = user.room) return true; else return false;
+            if (message.author.room == user.room) return true; else return false;
         }
 
         function sendMessage(user, socket){
@@ -142,7 +144,7 @@
             author = parseObject(message.author);
             $('#messages').append(`
                 <div class="message">
-                    <strong>${author.name}</strong>:${message.message}
+                    <strong style="color:${author.color}">${author.name}</strong>:${message.message}
                 </div>`
             );
         }
