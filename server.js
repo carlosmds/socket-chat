@@ -25,9 +25,9 @@ io.on('connection', socket => {
     handleSocket(socket);
 });
 
-function handleSocket(socket) 
+async function handleSocket(socket) 
 {
-    var userObject = getUserFromConnect(socket);
+    const userObject = await getUserFromConnect(socket);
 
     initialize(userObject, socket);
 
@@ -62,11 +62,10 @@ async function sendWelcome(socket, userObject){
 }
 
 function setUser(socket, userObject){
-
     key = getRoomKey(userObject.room, `users:${userObject.id}`);
     userObject = JSON.stringify(userObject);
     redisClient.set(key, userObject);
-    socket.broadcast.emit('userConnected', userObject);
+    socket.broadcast.emit('userConnected', JSON.parse(userObject));
 }
 
 function deleteUser(socket, userObject){
@@ -78,9 +77,10 @@ function deleteUser(socket, userObject){
 function getPreviousConnectedUsers(socket, userObject){
     return new Promise((resolve, reject) => {
         pattern = getRoomKey(userObject.room, `users:*`);
-        redisClient.keys(pattern, function(err, keys) {        
+        redisClient.keys(pattern, function(err, keys) {  
             redisClient.mget(keys, function(err, users) {
-                resolve(users);
+                connectedUsers = users.map(user => JSON.parse(user));
+                resolve(connectedUsers);
             });
         });
     });
@@ -108,13 +108,18 @@ function getRoomKey(room, key) {
 }
 
 function getUserFromConnect(socket) {
-    let socketData = socket.request._query; 
 
-    return {
-        id: socketData['id'],
-        name: socketData['name'],
-        room: socketData['room']
+    let socketUser = {
+        ...socket.request._query
     };
+
+    return new Promise((resolve, reject) => {
+        redisClient.get(`rooms:${socketUser.room}:users:${socketUser.id}`, function(err, user) {        
+            resolve (user || socketUser);
+        });
+    }).then((user) => {
+        return (typeof user == "string") ? JSON.parse(user) : user;
+    });
 }
 
 server.listen(3000);
