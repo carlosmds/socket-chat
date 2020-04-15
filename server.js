@@ -113,7 +113,8 @@ function getUserFromConnect(socket) {
     return {
         id: socketData['id'],
         name: socketData['name'],
-        room: socketData['room']
+        room: socketData['room'],
+        color: socketData['color'],
     };
 }
 

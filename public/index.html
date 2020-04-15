@@ -8,6 +8,7 @@
     <title>WebSocket Chat</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.3.0/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/randomcolor/0.5.4/randomColor.min.js"></script>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -22,13 +23,15 @@
         <button type="submit">Enviar</button>
     </form>
     <script type="text/javascript">
-        var random_color = Math.floor(Math.random()*16777215).toString(16); 
 
         var ActiveUser = {
             id: prompt('insira o id de usuário', '321'),
             name: prompt('insira o nome de usuário', 'Jo'),
             room: prompt('insira a sala', '123'),
-            color: `#${random_color}` 
+            color: randomColor({
+                luminosity: 'bright',
+                hue: 'random'
+            })
         };
         
         var socket = io.connect(document.URL, { 
